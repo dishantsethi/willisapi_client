@@ -164,6 +164,7 @@ def processed_upload(api_key: str, csv_path: str, output_path: str, **kwargs):
                     result_row["error"] = None
 
                     # Handle S3 upload if presigned URL is provided
+                    s3_errors = []
                     for file_presigned in res.get("response", []):
                         presigned = file_presigned.get("presigned")
                         checksum = file_presigned.get("checksum")
@@ -183,22 +184,15 @@ def processed_upload(api_key: str, csv_path: str, output_path: str, **kwargs):
                                         "Content-Type": content_type,
                                     },
                                 )
-                            if response.status_code == 200:
-                                result_row["upload_status"] = "Success"
-                            else:
-                                result_row["upload_status"] = "Failed"
-                                if result_row["error"] is None:
-                                    result_row["error"] = ""
-                                result_row["error"] = (
-                                    result_row["error"]
-                                    + "\n"
-                                    + f"S3 upload failed with status code {response.status_code} for file {recording}"
+                            if response.status_code != 200:
+                                s3_errors.append(
+                                    f"S3 upload failed with status code {response.status_code} for file {recording}"
                                 )
                         except Exception as ex:
-                            result_row["upload_status"] = "Failed"
-                            if result_row["error"] is None:
-                                result_row["error"] = ""
-                            result_row["error"] = result_row["error"] + "\n" + str(ex)
+                            s3_errors.append(str(ex))
+                    if s3_errors:
+                        result_row["upload_status"] = "Failed"
+                        result_row["error"] = "\n".join(s3_errors)
                 else:
                     result_row["upload_status"] = "Failed"
                     result_row["error"] = res.get("error")
